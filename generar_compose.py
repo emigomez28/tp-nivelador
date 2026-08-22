@@ -19,6 +19,8 @@ services:
       - PYTHONUNBUFFERED=1
       - SERVER_HOST={server_host}
       - SERVER_PORT={server_port}
+    ports:
+      - "{server_port}:{server_port}"
 """
 
 CLIENT_TEMPLATE = """\
