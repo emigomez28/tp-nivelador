@@ -8,6 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - OUTPUT_FILE=output/output_file.csv
     ports:
       - "5678:5678"
 
@@ -22,6 +23,7 @@ services:
       - AGENCY_ID=0
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - INPUT_FILE=input/input_0.csv
 
   client_1:
     build:
@@ -34,6 +36,7 @@ services:
       - AGENCY_ID=1
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - INPUT_FILE=input/input_1.csv
 
   client_2:
     build:
@@ -46,6 +49,7 @@ services:
       - AGENCY_ID=2
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - INPUT_FILE=input/input_2.csv
 
   client_3:
     build:
@@ -58,6 +62,7 @@ services:
       - AGENCY_ID=3
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - INPUT_FILE=input/input_3.csv
 
   client_4:
     build:
@@ -70,3 +75,4 @@ services:
       - AGENCY_ID=4
       - SERVER_HOST=server
       - SERVER_PORT=5678
+      - INPUT_FILE=input/input_4.csv
