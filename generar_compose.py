@@ -19,7 +19,6 @@ services:
       - PYTHONUNBUFFERED=1
       - SERVER_HOST={server_host}
       - SERVER_PORT={server_port}
-      - OUTPUT_FILE=output/output_file.csv
     ports:
       - "{server_port}:{server_port}"
 """
@@ -36,7 +35,8 @@ CLIENT_TEMPLATE = """\
       - AGENCY_ID={id}
       - SERVER_HOST={server_host}
       - SERVER_PORT={server_port}
-      - INPUT_FILE=input/input_{id}.csv
+      - INPUT_FILE=./input/input-{id}.csv
+      - OUTPUT_FILE=./output/output_file-{id}.csv
 """
 
 
