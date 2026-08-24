@@ -23,7 +23,7 @@ services:
       - SERVER_HOST=server
       - SERVER_PORT=5678
       - INPUT_FILE=/input/input-0.csv
-      - OUTPUT_FILE=/output/output_file.csv
+      - OUTPUT_FILE=/output/output_file-0.csv
     volumes:
       - ./input:/input
       - ./output/:/output/
