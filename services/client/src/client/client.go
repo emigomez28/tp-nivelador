@@ -1,24 +1,32 @@
 package client
 
 import (
+	"bufio"
 	"net"
+	"os"
 	"time"
 
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/safe_socket"
 )
 
-const CONNECTION_ATTEMPTS_MAX = 3
-const CONNECTION_ATTEMPS_DELAY_MS = 200
+const (
+	CONNECTION_ATTEMPTS_MAX     = 3
+	CONNECTION_ATTEMPS_DELAY_MS = 200
+)
 
-const ECHO_CLIENT_BUFFER_SIZE = 512
-const ECHO_CLIENT_MESSAGE_AMOUNT = 3
-const ECHO_CLIENT_MESSAGE_DELAY_MS = 1000
+const (
+	ECHO_CLIENT_BUFFER_SIZE      = 512
+	ECHO_CLIENT_MESSAGE_AMOUNT   = 3
+	ECHO_CLIENT_MESSAGE_DELAY_MS = 1000
+)
 
 type ClientConfig struct {
-	ServerHost string
-	ServerPort string
-	AgencyId   string
+	ServerHost     string
+	ServerPort     string
+	AgencyId       string
+	InputFilePath  string
+	OutputFilePath string
 }
 
 type Client struct {
@@ -59,14 +67,33 @@ func connectToServer(host, port string) (net.Conn, error) {
 }
 
 func (client *Client) Run() error {
-	const mainAction = "test-echo-server"
 	defer client.conn.Close()
+	const mainAction = "test-echo-server"
+	messageId := 0
 
-	for messageId := range ECHO_CLIENT_MESSAGE_AMOUNT {
-		messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId}
+	inputFile, err := os.Open(client.config.InputFilePath)
+	if err != nil {
+		logger.Error("open-file", logger.Fail, err)
+		return err
+	}
+
+	defer inputFile.Close()
+
+	outputFile, err := os.Create(client.config.OutputFilePath)
+	if err != nil {
+		logger.Error("open-file", logger.Fail, err)
+		return err
+	}
+
+	defer outputFile.Close()
+
+	inputScanner := bufio.NewScanner(inputFile)
+	outputWriter := bufio.NewWriter(outputFile)
+
+	for inputScanner.Scan() {
+		clientMessage := inputScanner.Text()
+		messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId, "message", clientMessage}
 		logger.Info(mainAction, logger.InProgress, messageArgs...)
-
-		clientMessage := client.config.AgencyId
 
 		if err := safe_socket.SendAll(client.conn, []byte(clientMessage)); err != nil {
 			logger.Error("send-message", logger.Fail, messageArgs...)
@@ -79,13 +106,24 @@ func (client *Client) Run() error {
 			return err
 		}
 
-		if string(responseBuffer) == clientMessage {
+		if string(responseBuffer) != clientMessage {
+			messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId, "message", clientMessage, "buffer", string(responseBuffer)}
 			logger.Error("check-response", logger.Fail, messageArgs...)
 			return err
 		}
 
+		response := string(responseBuffer)
+		_, err = outputWriter.WriteString(response + "\n")
+		if err != nil {
+			messageArgs := []any{"agency-id", client.config.AgencyId, "message-id", messageId, "message", clientMessage, "err", err}
+			logger.Error("check-response", logger.Fail, messageArgs...)
+			return err
+		}
+		outputWriter.Flush()
+		messageId++
 		time.Sleep(ECHO_CLIENT_MESSAGE_DELAY_MS * time.Millisecond)
 	}
+
 	logger.Info(mainAction, logger.Success, "agency-id", client.config.AgencyId)
 
 	return nil

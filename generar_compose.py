@@ -35,6 +35,11 @@ CLIENT_TEMPLATE = """\
       - AGENCY_ID={id}
       - SERVER_HOST={server_host}
       - SERVER_PORT={server_port}
+      - INPUT_FILE=/input/input-{id}.csv
+      - OUTPUT_FILE=/output/output_file-{id}.csv
+    volumes:
+      - ./input:/input
+      - ./output/:/output/
 """
 
 
