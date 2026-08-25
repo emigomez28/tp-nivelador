@@ -21,3 +21,5 @@ def send_all(sock: socket.socket, data: bytes):
     while total_sent < len(data):
         sent = sock.send(data[total_sent:])
         total_sent += sent
+
+    return total_sent
