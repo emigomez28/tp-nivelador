@@ -1,11 +1,23 @@
 import socket
 
-# TODO: Complete with a short-read/short-write tolerant implementation
+
+def recv_all(sock: socket.socket, size):
+    total_read = b""
+
+    while len(total_read) < size:
+        read = sock.recv(size - len(total_read))
+
+        if read == b"":
+            raise RuntimeError("Connection closed before receiving all data")
+
+        total_read += read
+
+    return total_read
 
 
-def recv_all(socket: socket.socket, size):
-    return socket.recv(size)
+def send_all(sock: socket.socket, data: bytes):
+    total_sent = 0
 
-
-def send_all(socket: socket.socket, bytes):
-    return socket.send(bytes)
+    while total_sent < len(data):
+        sent = sock.send(data[total_sent:])
+        total_sent += sent
