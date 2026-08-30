@@ -120,12 +120,12 @@ func (client *Client) sendBets() (int, error) {
 	inputScanner := bufio.NewScanner(inputFile)
 
 	for inputScanner.Scan() {
-		betLine := inputScanner.Bytes()
+		betLine := inputScanner.Text()
 		if len(betLine) == 0 {
 			continue
 		}
 
-		msg := protocol.NewMessage(protocol.MsgBet, betLine)
+		msg := protocol.NewMessage(protocol.MsgBet, []byte(betLine))
 		if err := protocol.SendMessage(client.conn, msg); err != nil {
 			return betsAmount, err
 		}
