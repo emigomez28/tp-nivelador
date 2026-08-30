@@ -15,7 +15,7 @@ func SendMessage(writer io.Writer, msg *Message) error {
 
 	dataToSend := make([]byte, _HEADER_SIZE+len(msg.Payload))
 	dataToSend[0] = byte(msg.Type)
-	binary.BigEndian.PutUint16(dataToSend[1:3], uint16(len(msg.Payload)))
+	binary.BigEndian.PutUint16(dataToSend[_TYPE_FIELD_SIZE:_HEADER_SIZE], uint16(len(msg.Payload)))
 	copy(dataToSend[_HEADER_SIZE:], msg.Payload)
 
 	return safe_socket.SendAll(writer, dataToSend)
