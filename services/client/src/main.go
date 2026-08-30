@@ -37,7 +37,7 @@ func loadConfig() (client.ClientConfig, error) {
 	return client.ClientConfig{
 		ServerHost:     serverHost,
 		ServerPort:     serverPort,
-		AgencyId:       agencyId,
+		AgencyID:       agencyId,
 		InputFilePath:  inputFilePath,
 		OutputFilePath: outputFilePath,
 	}, nil
