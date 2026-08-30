@@ -16,12 +16,6 @@ const (
 	CONNECTION_ATTEMPS_DELAY_MS = 200
 )
 
-const (
-	ECHO_CLIENT_BUFFER_SIZE      = 512
-	ECHO_CLIENT_MESSAGE_AMOUNT   = 3
-	ECHO_CLIENT_MESSAGE_DELAY_MS = 1000
-)
-
 type ClientConfig struct {
 	ServerHost     string
 	ServerPort     string

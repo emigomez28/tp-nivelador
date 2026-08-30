@@ -3,8 +3,6 @@ import logger
 import protocol
 from lottery import Lottery
 
-_ECHO_SERVER_MESSAGE_SIZE = 1024
-
 
 class Server:
     def __init__(self, server_host: str, server_port: int, storage_path: str) -> None:
