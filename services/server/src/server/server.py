@@ -75,16 +75,16 @@ class Server:
             if message.type == protocol.MessageType.END_TRANSMISSION:
                 break
 
-            if message.type != protocol.MessageType.BET:
+            if message.type != protocol.MessageType.BETS:
                 received_name = protocol.MessageType.get_name_from_code(message.type)
                 raise RuntimeError(
-                    f"expected BET or END_TRANSMISSION, got {received_name}"
+                    f"expected BETS or END_TRANSMISSION, got {received_name}"
                 )
 
-            bet = protocol.decode_bet(message.payload, agency_id)
-            self.lottery.store_bets([bet])
+            bets = protocol.decode_bets(message.payload, agency_id)
+            self.lottery.store_bets(bets)
 
-            bets_amount += 1
+            bets_amount += len(bets)
 
             protocol.send_message(
                 client_socket, protocol.Message(protocol.MessageType.OK)

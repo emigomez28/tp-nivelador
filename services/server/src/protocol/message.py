@@ -10,7 +10,7 @@ _UNKNOWN_TYPE_NAME = "UNKNOWN"
 
 class MessageType:
     START_TRANSMISSION = 0x01
-    BET = 0x02
+    BETS = 0x02
     END_TRANSMISSION = 0x03
     OK = 0x10
     WINNERS = 0x11
@@ -23,7 +23,7 @@ class MessageType:
 
 _TYPE_NAMES = {
     MessageType.START_TRANSMISSION: "START_TRANSMISSION",
-    MessageType.BET: "BET",
+    MessageType.BETS: "BETS",
     MessageType.END_TRANSMISSION: "END_TRANSMISSION",
     MessageType.OK: "OK",
     MessageType.WINNERS: "WINNERS",

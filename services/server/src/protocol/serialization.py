@@ -2,6 +2,7 @@ from lottery import Bet
 
 _BET_FIELDS_AMOUNT = 5
 _FIELD_SEPARATOR = ","
+_BET_SEPARATOR = "\n"
 
 
 def decode_agency_id(payload: bytes) -> int:
@@ -11,8 +12,16 @@ def decode_agency_id(payload: bytes) -> int:
         raise RuntimeError(f"invalid agency id: {payload}")
 
 
-def decode_bet(payload: bytes, agency_id: int) -> Bet:
-    fields = payload.decode("utf-8").split(_FIELD_SEPARATOR)
+def decode_bets(payload: bytes, agency_id: int) -> list[Bet]:
+    if not payload:
+        raise RuntimeError("empty bet batch")
+
+    lines = payload.decode("utf-8").split(_BET_SEPARATOR)
+    return [_decode_bet(line, agency_id) for line in lines]
+
+
+def _decode_bet(line: str, agency_id: int) -> Bet:
+    fields = line.split(_FIELD_SEPARATOR)
 
     if len(fields) != _BET_FIELDS_AMOUNT:
         raise RuntimeError(f"expected {_BET_FIELDS_AMOUNT} fields, got {len(fields)}")
