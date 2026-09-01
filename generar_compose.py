@@ -6,6 +6,7 @@ CANT_CLIENTES = 1
 
 SERVER_HOST = "server"
 SERVER_PORT = 5678
+BATCH_SIZE = 16
 ARCHIVO_SALIDA = "docker-compose.yaml"
 
 SERVER_TEMPLATE = """\
@@ -37,6 +38,7 @@ CLIENT_TEMPLATE = """\
       - SERVER_PORT={server_port}
       - INPUT_FILE=/input/input-{id}.csv
       - OUTPUT_FILE=/output/output_file-{id}.csv
+      - BATCH_SIZE={batch_size}
     volumes:
       - ./input:/input
       - ./output/:/output/
@@ -50,7 +52,10 @@ def generar_compose(cant_clientes):
     for i in range(cant_clientes):
         contenido.append(
             CLIENT_TEMPLATE.format(
-                id=i, server_host=SERVER_HOST, server_port=SERVER_PORT
+                id=i,
+                server_host=SERVER_HOST,
+                server_port=SERVER_PORT,
+                batch_size=BATCH_SIZE,
             )
         )
 
