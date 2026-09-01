@@ -4,7 +4,7 @@ type MessageType uint8
 
 const (
 	MsgStartTransmission MessageType = 0x01
-	MsgBet               MessageType = 0x02
+	MsgBets              MessageType = 0x02
 	MsgEndTransmission   MessageType = 0x03
 	MsgOk                MessageType = 0x10
 	MsgWinners           MessageType = 0x11
@@ -35,8 +35,8 @@ func (messageType MessageType) String() string {
 	switch messageType {
 	case MsgStartTransmission:
 		return "START_TRANSMISSION"
-	case MsgBet:
-		return "BET"
+	case MsgBets:
+		return "BETS"
 	case MsgEndTransmission:
 		return "END_TRANSMISSION"
 	case MsgOk:

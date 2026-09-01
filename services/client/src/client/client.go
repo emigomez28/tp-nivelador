@@ -14,6 +14,7 @@ import (
 const (
 	CONNECTION_ATTEMPTS_MAX     = 3
 	CONNECTION_ATTEMPS_DELAY_MS = 200
+	DEFAULT_BATCH_SIZE          = 8
 )
 
 type ClientConfig struct {
@@ -22,6 +23,7 @@ type ClientConfig struct {
 	AgencyID       string
 	InputFilePath  string
 	OutputFilePath string
+	BatchSize      int
 }
 
 type Client struct {
@@ -111,27 +113,50 @@ func (client *Client) sendBets() (int, error) {
 	defer inputFile.Close()
 
 	betsAmount := 0
+	batch := protocol.NewBetBatch(client.config.BatchSize)
 	inputScanner := bufio.NewScanner(inputFile)
 
 	for inputScanner.Scan() {
 		betLine := inputScanner.Text()
-		if len(betLine) == 0 {
-			continue
+		if !batch.CanAdd(betLine) {
+			sent, err := client.sendBatch(batch)
+			betsAmount += sent
+			if err != nil {
+				return betsAmount, err
+			}
 		}
 
-		msg := protocol.NewMessage(protocol.MsgBet, []byte(betLine))
-		if err := protocol.SendMessage(client.conn, msg); err != nil {
-			return betsAmount, err
-		}
-
-		if err := client.recvOk(); err != nil {
-			return betsAmount, err
-		}
-
-		betsAmount++
+		batch.Add(betLine)
 	}
 
-	return betsAmount, inputScanner.Err()
+	if err := inputScanner.Err(); err != nil {
+		return betsAmount, err
+	}
+
+	if batch.IsEmpty() {
+		return betsAmount, nil
+	}
+
+	sent, err := client.sendBatch(batch)
+	betsAmount += sent
+
+	return betsAmount, err
+}
+
+func (client *Client) sendBatch(batch *protocol.BetBatch) (int, error) {
+	betsAmount := batch.Count()
+	err := protocol.SendMessage(client.conn, batch.Message())
+	batch.Reset()
+
+	if err != nil {
+		return 0, err
+	}
+
+	if err := client.recvOk(); err != nil {
+		return 0, err
+	}
+
+	return betsAmount, nil
 }
 
 func (client *Client) endTransmission() ([]byte, error) {
