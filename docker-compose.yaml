@@ -6,6 +6,7 @@ services:
     container_name: server
     environment:
       - PYTHONUNBUFFERED=1
+      - AGENCY_QUORUM_MIN=5
       - SERVER_HOST=server
       - SERVER_PORT=5678
     ports:
@@ -24,6 +25,78 @@ services:
       - SERVER_PORT=5678
       - INPUT_FILE=/input/input-0.csv
       - OUTPUT_FILE=/output/output_file-0.csv
+      - BATCH_SIZE=16
+    volumes:
+      - ./input:/input
+      - ./output/:/output/
+
+  client_1:
+    build:
+      context: ./services/client
+      dockerfile: Dockerfile
+    container_name: client_1
+    depends_on:
+      - server
+    environment:
+      - AGENCY_ID=1
+      - SERVER_HOST=server
+      - SERVER_PORT=5678
+      - INPUT_FILE=/input/input-1.csv
+      - OUTPUT_FILE=/output/output_file-1.csv
+      - BATCH_SIZE=16
+    volumes:
+      - ./input:/input
+      - ./output/:/output/
+
+  client_2:
+    build:
+      context: ./services/client
+      dockerfile: Dockerfile
+    container_name: client_2
+    depends_on:
+      - server
+    environment:
+      - AGENCY_ID=2
+      - SERVER_HOST=server
+      - SERVER_PORT=5678
+      - INPUT_FILE=/input/input-2.csv
+      - OUTPUT_FILE=/output/output_file-2.csv
+      - BATCH_SIZE=16
+    volumes:
+      - ./input:/input
+      - ./output/:/output/
+
+  client_3:
+    build:
+      context: ./services/client
+      dockerfile: Dockerfile
+    container_name: client_3
+    depends_on:
+      - server
+    environment:
+      - AGENCY_ID=3
+      - SERVER_HOST=server
+      - SERVER_PORT=5678
+      - INPUT_FILE=/input/input-3.csv
+      - OUTPUT_FILE=/output/output_file-3.csv
+      - BATCH_SIZE=16
+    volumes:
+      - ./input:/input
+      - ./output/:/output/
+
+  client_4:
+    build:
+      context: ./services/client
+      dockerfile: Dockerfile
+    container_name: client_4
+    depends_on:
+      - server
+    environment:
+      - AGENCY_ID=4
+      - SERVER_HOST=server
+      - SERVER_PORT=5678
+      - INPUT_FILE=/input/input-4.csv
+      - OUTPUT_FILE=/output/output_file-4.csv
       - BATCH_SIZE=16
     volumes:
       - ./input:/input

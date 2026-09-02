@@ -18,6 +18,7 @@ services:
     container_name: server
     environment:
       - PYTHONUNBUFFERED=1
+      - AGENCY_QUORUM_MIN={agency_quorum_min}
       - SERVER_HOST={server_host}
       - SERVER_PORT={server_port}
     ports:
@@ -47,7 +48,11 @@ CLIENT_TEMPLATE = """\
 
 def generar_compose(cant_clientes):
     contenido = [
-        SERVER_TEMPLATE.format(server_host=SERVER_HOST, server_port=SERVER_PORT)
+        SERVER_TEMPLATE.format(
+            server_host=SERVER_HOST,
+            server_port=SERVER_PORT,
+            agency_quorum_min=cant_clientes,
+        )
     ]
     for i in range(cant_clientes):
         contenido.append(
