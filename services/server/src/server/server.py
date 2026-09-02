@@ -1,34 +1,53 @@
 import socket
+import threading
+
 import logger
 import protocol
 from lottery import Lottery
 
 
+def _log_draw() -> None:
+    logger.info("lottery-draw", logger.LogResult.success)
+
+
 class Server:
-    def __init__(self, server_host: str, server_port: int, storage_path: str) -> None:
+    def __init__(
+        self,
+        server_host: str,
+        server_port: int,
+        storage_path: str,
+        agency_quorum_min: int,
+    ) -> None:
         self.server_host = server_host
         self.server_port = server_port
         self.lottery = Lottery(storage_path)
+        self._lottery_lock = threading.Lock()
+        self._quorum = threading.Barrier(agency_quorum_min, action=_log_draw)
+        self._client_threads = set()
+        self._client_threads_lock = threading.Lock()
 
     def _handle_client(self, client_socket):
         action = "handle-client"
 
         try:
-            agency_id = self._recv_start_transmission(client_socket)
-            bets_amount = self._recv_bets(client_socket, agency_id)
-            self._send_winners(client_socket, agency_id)
+            with client_socket:
+                agency_id = self._recv_start_transmission(client_socket)
+                bets_amount = self._recv_bets(client_socket, agency_id)
+                self._quorum.wait()
+                self._send_winners(client_socket, agency_id)
+
+            logger.info(
+                action,
+                logger.LogResult.success,
+                "agency-id",
+                agency_id,
+                "bets-amount",
+                bets_amount,
+            )
         except Exception as e:
             logger.error(action, logger.LogResult.fail, "err", e)
-            return
-
-        logger.info(
-            action,
-            logger.LogResult.success,
-            "agency-id",
-            agency_id,
-            "bets-amount",
-            bets_amount,
-        )
+        finally:
+            self._untrack_current_thread()
 
     def run(self):
         action = "accept-connection"
@@ -44,8 +63,19 @@ class Server:
                     raise e
                 logger.info(action, logger.LogResult.success)
 
-                with client_socket:
-                    self._handle_client(client_socket)
+                self._spawn_client_thread(client_socket)
+
+    def _spawn_client_thread(self, client_socket) -> None:
+        thread = threading.Thread(target=self._handle_client, args=(client_socket,))
+
+        with self._client_threads_lock:
+            self._client_threads.add(thread)
+
+        thread.start()
+
+    def _untrack_current_thread(self) -> None:
+        with self._client_threads_lock:
+            self._client_threads.discard(threading.current_thread())
 
     def _recv_expecting(self, client_socket, expected: int) -> protocol.Message:
         message = protocol.recv_message(client_socket)
@@ -82,7 +112,8 @@ class Server:
                 )
 
             bets = protocol.decode_bets(message.payload, agency_id)
-            self.lottery.store_bets(bets)
+            with self._lottery_lock:
+                self.lottery.store_bets(bets)
 
             bets_amount += len(bets)
 
@@ -105,8 +136,9 @@ class Server:
     def _get_winners(self, agency_id):
         winners = []
 
-        for bet in self.lottery.load_bets():
-            if bet.agency_id == agency_id and self.lottery.has_won(bet):
-                winners.append(bet)
+        with self._lottery_lock:
+            for bet in self.lottery.load_bets():
+                if bet.agency_id == agency_id and self.lottery.has_won(bet):
+                    winners.append(bet)
 
         return winners
