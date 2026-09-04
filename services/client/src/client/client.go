@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -17,6 +18,8 @@ const (
 	DEFAULT_BATCH_SIZE          = 8
 )
 
+var ErrShutdown = errors.New("shutdown requested")
+
 type ClientConfig struct {
 	ServerHost     string
 	ServerPort     string
@@ -27,19 +30,24 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	conn   net.Conn
-	config ClientConfig
+	conn     net.Conn
+	config   ClientConfig
+	shutdown <-chan struct{}
 }
 
-func NewClient(config ClientConfig) (*Client, error) {
+func NewClient(config ClientConfig, shutdown <-chan struct{}) (*Client, error) {
 	conn, err := connectToServer(config.ServerHost, config.ServerPort)
 	if err != nil {
 		logger.Warn("connect-to-server", logger.Fail)
 		return nil, err
 	}
 
-	client := &Client{conn: conn, config: config}
+	client := &Client{conn: conn, config: config, shutdown: shutdown}
 	return client, nil
+}
+
+func (client *Client) Close() error {
+	return client.conn.Close()
 }
 
 func connectToServer(host, port string) (net.Conn, error) {
@@ -50,39 +58,63 @@ func connectToServer(host, port string) (net.Conn, error) {
 	logger.Info(action, logger.InProgress)
 	for i := range CONNECTION_ATTEMPTS_MAX {
 		conn, err = net.Dial("tcp", host+":"+port)
-		if err != nil {
-			logger.Warn(action, logger.Fail, "attempt", i)
-			time.Sleep(CONNECTION_ATTEMPS_DELAY_MS * time.Millisecond)
-			continue
+		if err == nil {
+			logger.Info(action, logger.Success)
+			break
 		}
 
-		logger.Info(action, logger.Success)
-		break
+		logger.Warn(action, logger.Fail, "attempt", i)
+		time.Sleep(CONNECTION_ATTEMPS_DELAY_MS * time.Millisecond)
 	}
 
 	return conn, err
 }
 
 func (client *Client) Run() error {
-	defer client.conn.Close()
+	err := client.transmit()
+	if client.isShuttingDown() {
+		return nil
+	}
+
+	return err
+}
+
+func (client *Client) isShuttingDown() bool {
+	select {
+	case <-client.shutdown:
+		return true
+	default:
+		return false
+	}
+}
+
+func (client *Client) logTransmissionFailure(action string, args ...any) {
+	if client.isShuttingDown() {
+		logger.Info("graceful-shutdown", logger.Success, "agency-id", client.config.AgencyID)
+	} else {
+		logger.Error(action, logger.Fail, args...)
+	}
+}
+
+func (client *Client) transmit() error {
 	action := "send-bets"
 
 	logger.Info(action, logger.InProgress, "agency-id", client.config.AgencyID)
 
 	if err := client.startTransmission(); err != nil {
-		logger.Error(action, logger.Fail, "err", err)
+		client.logTransmissionFailure(action, "err", err)
 		return err
 	}
 
 	betsAmount, err := client.sendBets()
 	if err != nil {
-		logger.Error(action, logger.Fail, "bets-amount", betsAmount, "err", err)
+		client.logTransmissionFailure(action, "bets-amount", betsAmount, "err", err)
 		return err
 	}
 
 	winners, err := client.endTransmission()
 	if err != nil {
-		logger.Error(action, logger.Fail, "err", err)
+		client.logTransmissionFailure(action, "err", err)
 		return err
 	}
 
@@ -117,6 +149,10 @@ func (client *Client) sendBets() (int, error) {
 	inputScanner := bufio.NewScanner(inputFile)
 
 	for inputScanner.Scan() {
+		if client.isShuttingDown() {
+			return betsAmount, ErrShutdown
+		}
+
 		betLine := inputScanner.Text()
 		if !batch.CanAdd(betLine) {
 			sent, err := client.sendBatch(batch)

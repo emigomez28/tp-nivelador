@@ -5,6 +5,8 @@ import logger
 import protocol
 from lottery import Lottery
 
+CLIENT_THREAD_JOIN_TIMEOUT_SECONDS = 0.5
+
 
 def _log_draw() -> None:
     logger.info("lottery-draw", logger.LogResult.success)
@@ -23,15 +25,37 @@ class Server:
         self.lottery = Lottery(storage_path)
         self._lottery_lock = threading.Lock()
         self._quorum = threading.Barrier(agency_quorum_min, action=_log_draw)
-        self._client_threads = set()
-        self._client_threads_lock = threading.Lock()
+        self._is_running = True
+        self._server_socket = None
+        self._client_sockets_by_thread = {}
+
+    def shutdown(self) -> None:
+        self._is_running = False
+        self._unblock_accept()
+
+    def _unblock_accept(self) -> None:
+        if self._server_socket is None:
+            return
+        try:
+            self._server_socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def _unblock_clients(self) -> None:
+        for client_socket in self._client_sockets_by_thread.values():
+            try:
+                client_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
     def _handle_client(self, client_socket):
         action = "handle-client"
+        agency_id = None
 
         try:
             with client_socket:
                 agency_id = self._recv_start_transmission(client_socket)
+                threading.current_thread().name = f"thread-agency-{agency_id}"
                 bets_amount = self._recv_bets(client_socket, agency_id)
                 self._quorum.wait()
                 self._send_winners(client_socket, agency_id)
@@ -45,37 +69,75 @@ class Server:
                 bets_amount,
             )
         except Exception as e:
-            logger.error(action, logger.LogResult.fail, "err", e)
-        finally:
-            self._untrack_current_thread()
+            if self._is_running:
+                logger.error(action, logger.LogResult.fail, "err", e)
+            else:
+                logger.info(
+                    "handle-client-shutdown",
+                    logger.LogResult.success,
+                    "agency-id",
+                    agency_id,
+                )
 
     def run(self):
         action = "accept-connection"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            self._server_socket = server_socket
             server_socket.bind((self.server_host, self.server_port))
             server_socket.listen()
-            while True:
+
+            while self._is_running:
                 try:
                     logger.info(action, logger.LogResult.in_progress)
                     client_socket, _ = server_socket.accept()
-                except Exception as e:
+                except OSError as e:
+                    if not self._is_running:
+                        break
                     logger.error(action, logger.LogResult.fail)
                     raise e
                 logger.info(action, logger.LogResult.success)
 
+                self._untrack_finished_threads()
                 self._spawn_client_thread(client_socket)
+
+        self._shutdown_clients()
+
+    def _shutdown_clients(self) -> None:
+        logger.info("shutdown", logger.LogResult.in_progress)
+        self._quorum.abort()
+        self._unblock_clients()
+        self._join_client_threads()
+        logger.info("shutdown", logger.LogResult.success)
 
     def _spawn_client_thread(self, client_socket) -> None:
         thread = threading.Thread(target=self._handle_client, args=(client_socket,))
-
-        with self._client_threads_lock:
-            self._client_threads.add(thread)
-
+        self._client_sockets_by_thread[thread] = client_socket
         thread.start()
 
-    def _untrack_current_thread(self) -> None:
-        with self._client_threads_lock:
-            self._client_threads.discard(threading.current_thread())
+    def _untrack_finished_threads(self) -> None:
+        alive_clients = {}
+
+        for thread, client_socket in self._client_sockets_by_thread.items():
+            if thread.is_alive():
+                alive_clients[thread] = client_socket
+
+        self._client_sockets_by_thread = alive_clients
+
+    def _join_client_threads(self) -> None:
+        threads = list(self._client_sockets_by_thread.keys())
+
+        for thread in threads:
+            thread.join(timeout=CLIENT_THREAD_JOIN_TIMEOUT_SECONDS)
+
+        pending = [thread for thread in threads if thread.is_alive()]
+
+        for pending_thread in pending:
+            logger.error(
+                "join-client-threads",
+                logger.LogResult.fail,
+                "pending-thread",
+                pending_thread.name,
+            )
 
     def _recv_expecting(self, client_socket, expected: int) -> protocol.Message:
         message = protocol.recv_message(client_socket)

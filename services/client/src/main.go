@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	client "github.com/7574-sistemas-distribuidos/tp-nivelador/src/client"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
@@ -65,6 +67,13 @@ func loadBatchSize() (int, error) {
 	return batchSize, nil
 }
 
+func shutdownOnSignal(signals <-chan os.Signal, shutdown chan<- struct{}, agencyClient *client.Client) {
+	<-signals
+	logger.Info("graceful-shutdown", logger.InProgress)
+	close(shutdown)
+	agencyClient.Close()
+}
+
 func run() int {
 	config, err := loadConfig()
 	if err != nil {
@@ -72,13 +81,21 @@ func run() int {
 		return 1
 	}
 
-	client, err := client.NewClient(config)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM)
+
+	shutdown := make(chan struct{})
+
+	agencyClient, err := client.NewClient(config, shutdown)
 	if err != nil {
 		logger.Error("client-new", logger.Fail, "err", err)
 		return 1
 	}
+	defer agencyClient.Close()
 
-	if err := client.Run(); err != nil {
+	go shutdownOnSignal(signals, shutdown, agencyClient)
+
+	if err := agencyClient.Run(); err != nil {
 		logger.Error("client-run", logger.Fail, "err", err)
 		return 1
 	}
