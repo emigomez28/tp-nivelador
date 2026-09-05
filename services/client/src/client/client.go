@@ -33,6 +33,7 @@ type Client struct {
 	conn     net.Conn
 	config   ClientConfig
 	shutdown <-chan struct{}
+	sendBuf  []byte
 }
 
 func NewClient(config ClientConfig, shutdown <-chan struct{}) (*Client, error) {
@@ -42,7 +43,7 @@ func NewClient(config ClientConfig, shutdown <-chan struct{}) (*Client, error) {
 		return nil, err
 	}
 
-	client := &Client{conn: conn, config: config, shutdown: shutdown}
+	client := &Client{conn: conn, config: config, shutdown: shutdown, sendBuf: protocol.NewSendBuffer()}
 	return client, nil
 }
 
@@ -130,7 +131,7 @@ func (client *Client) transmit() error {
 func (client *Client) startTransmission() error {
 	msg := protocol.NewMessage(protocol.MsgStartTransmission, []byte(client.config.AgencyID))
 
-	if err := protocol.SendMessage(client.conn, msg); err != nil {
+	if err := protocol.SendMessage(client.conn, msg, client.sendBuf); err != nil {
 		return err
 	}
 
@@ -153,7 +154,7 @@ func (client *Client) sendBets() (int, error) {
 			return betsAmount, ErrShutdown
 		}
 
-		betLine := inputScanner.Text()
+		betLine := inputScanner.Bytes()
 		if !batch.CanAdd(betLine) {
 			sent, err := client.sendBatch(batch)
 			betsAmount += sent
@@ -181,7 +182,7 @@ func (client *Client) sendBets() (int, error) {
 
 func (client *Client) sendBatch(batch *protocol.BetBatch) (int, error) {
 	betsAmount := batch.Count()
-	err := protocol.SendMessage(client.conn, batch.Message())
+	err := protocol.SendMessage(client.conn, batch.Message(), client.sendBuf)
 	batch.Reset()
 
 	if err != nil {
@@ -197,7 +198,7 @@ func (client *Client) sendBatch(batch *protocol.BetBatch) (int, error) {
 
 func (client *Client) endTransmission() ([]byte, error) {
 	msg := protocol.NewMessage(protocol.MsgEndTransmission, []byte{})
-	if err := protocol.SendMessage(client.conn, msg); err != nil {
+	if err := protocol.SendMessage(client.conn, msg, client.sendBuf); err != nil {
 		return nil, err
 	}
 
@@ -214,14 +215,14 @@ func (client *Client) recvOk() error {
 	return err
 }
 
-func (client *Client) recvExpecting(expected protocol.MessageType) (*protocol.Message, error) {
+func (client *Client) recvExpecting(expected protocol.MessageType) (protocol.Message, error) {
 	response, err := protocol.RecvMessage(client.conn)
 	if err != nil {
-		return nil, err
+		return protocol.Message{}, err
 	}
 
 	if response.Type != expected {
-		return nil, fmt.Errorf("expected %s, got %s", expected, response.Type)
+		return protocol.Message{}, fmt.Errorf("expected %s, got %s", expected, response.Type)
 	}
 
 	return response, nil

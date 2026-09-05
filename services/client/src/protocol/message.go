@@ -24,8 +24,8 @@ type Message struct {
 	Payload []byte
 }
 
-func NewMessage(messageType MessageType, payload []byte) *Message {
-	return &Message{
+func NewMessage(messageType MessageType, payload []byte) Message {
+	return Message{
 		messageType,
 		payload,
 	}

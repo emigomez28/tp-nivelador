@@ -15,7 +15,7 @@ func NewBetBatch(maxRecords int) *BetBatch {
 	return &BetBatch{payload: []byte{}, count: 0, maxRecords: maxRecords}
 }
 
-func (batch *BetBatch) CanAdd(betLine string) bool {
+func (batch *BetBatch) CanAdd(betLine []byte) bool {
 	if batch.IsEmpty() {
 		return true
 	}
@@ -26,15 +26,12 @@ func (batch *BetBatch) CanAdd(betLine string) bool {
 	return maxRecordsNotExceeded && doesNotOverflow
 }
 
-func (batch *BetBatch) Add(betLine string) {
+func (batch *BetBatch) Add(betLine []byte) {
 	if batch.count > 0 {
 		batch.payload = append(batch.payload, _BET_SEPARATOR)
 	}
 
-	for _, betLineByte := range []byte(betLine) {
-		batch.payload = append(batch.payload, betLineByte)
-	}
-
+	batch.payload = append(batch.payload, betLine...)
 	batch.count++
 }
 
@@ -51,11 +48,11 @@ func (batch *BetBatch) Reset() {
 	batch.count = 0
 }
 
-func (batch *BetBatch) Message() *Message {
+func (batch *BetBatch) Message() Message {
 	return NewMessage(MsgBets, batch.payload)
 }
 
-func (batch *BetBatch) sizeWith(betLine string) int {
+func (batch *BetBatch) sizeWith(betLine []byte) int {
 	size := len(batch.payload) + len(betLine) + _BET_SEPARATOR_SIZE
 	return size
 }
