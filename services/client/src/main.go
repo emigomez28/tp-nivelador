@@ -13,9 +13,9 @@ import (
 )
 
 func loadConfig() (client.ClientConfig, error) {
-	agencyId := os.Getenv("AGENCY_ID")
-	if agencyId == "" {
-		return client.ClientConfig{}, errors.New("AGENCY_ID environment variable is required")
+	agencyId, err := loadAgencyID()
+	if err != nil {
+		return client.ClientConfig{}, err
 	}
 
 	serverHost := os.Getenv("SERVER_HOST")
@@ -51,6 +51,20 @@ func loadConfig() (client.ClientConfig, error) {
 		OutputFilePath: outputFilePath,
 		BatchSize:      batchSize,
 	}, nil
+}
+
+func loadAgencyID() (uint16, error) {
+	agencyIdStr := os.Getenv("AGENCY_ID")
+	if agencyIdStr == "" {
+		return 0, errors.New("AGENCY_ID environment variable is required")
+	}
+
+	agencyId, err := strconv.ParseUint(agencyIdStr, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("AGENCY_ID must fit in an unsigned 16 bit integer, got %q", agencyIdStr)
+	}
+
+	return uint16(agencyId), nil
 }
 
 func loadBatchSize() (int, error) {

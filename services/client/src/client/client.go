@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/bet_csv"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/protocol"
 )
@@ -23,7 +24,7 @@ var ErrShutdown = errors.New("shutdown requested")
 type ClientConfig struct {
 	ServerHost     string
 	ServerPort     string
-	AgencyID       string
+	AgencyID       uint16
 	InputFilePath  string
 	OutputFilePath string
 	BatchSize      int
@@ -129,7 +130,7 @@ func (client *Client) transmit() error {
 }
 
 func (client *Client) startTransmission() error {
-	msg := protocol.NewMessage(protocol.MsgStartTransmission, []byte(client.config.AgencyID))
+	msg := protocol.NewStartTransmissionMessage(client.config.AgencyID)
 
 	if err := protocol.SendMessage(client.conn, msg, client.sendBuf); err != nil {
 		return err
@@ -149,13 +150,17 @@ func (client *Client) sendBets() (int, error) {
 	batch := protocol.NewBetBatch(client.config.BatchSize)
 	inputScanner := bufio.NewScanner(inputFile)
 
+	var bet protocol.Bet
 	for inputScanner.Scan() {
 		if client.isShuttingDown() {
 			return betsAmount, ErrShutdown
 		}
 
-		betLine := inputScanner.Bytes()
-		if !batch.CanAdd(betLine) {
+		if err := bet_csv.ParseLine(inputScanner.Bytes(), &bet); err != nil {
+			return betsAmount, err
+		}
+
+		if !batch.CanAdd(bet) {
 			sent, err := client.sendBatch(batch)
 			betsAmount += sent
 			if err != nil {
@@ -163,7 +168,7 @@ func (client *Client) sendBets() (int, error) {
 			}
 		}
 
-		batch.Add(betLine)
+		batch.Add(bet)
 	}
 
 	if err := inputScanner.Err(); err != nil {
@@ -239,10 +244,22 @@ func (client *Client) storeWinners(winners []byte) error {
 		return nil
 	}
 
-	if _, err := outputFile.Write(winners); err != nil {
-		return err
+	outputWriter := bufio.NewWriter(outputFile)
+	line := make([]byte, 0, bet_csv.MaxLineSize)
+
+	var bet protocol.Bet
+	for offset := 0; offset < len(winners); {
+		offset, err = protocol.DecodeBet(winners, offset, &bet)
+		if err != nil {
+			return err
+		}
+
+		line = bet_csv.AppendLine(line[:0], bet)
+		if _, err := outputWriter.Write(line); err != nil {
+			return err
+		}
 	}
 
-	_, err = outputFile.WriteString("\n")
+	err = outputWriter.Flush()
 	return err
 }

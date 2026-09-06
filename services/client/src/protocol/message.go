@@ -1,5 +1,7 @@
 package protocol
 
+import "encoding/binary"
+
 type MessageType uint8
 
 const (
@@ -17,6 +19,8 @@ const (
 	_HEADER_SIZE       = _TYPE_FIELD_SIZE + _LENGTH_FIELD_SIZE
 	_MAX_UINT_16       = 65535
 	_MAX_PAYLOAD_SIZE  = _MAX_UINT_16
+
+	_AGENCY_ID_SIZE = 2
 )
 
 type Message struct {
@@ -29,6 +33,11 @@ func NewMessage(messageType MessageType, payload []byte) Message {
 		messageType,
 		payload,
 	}
+}
+
+func NewStartTransmissionMessage(agencyID uint16) Message {
+	payload := binary.BigEndian.AppendUint16(make([]byte, 0, _AGENCY_ID_SIZE), agencyID)
+	return NewMessage(MsgStartTransmission, payload)
 }
 
 func (messageType MessageType) String() string {
